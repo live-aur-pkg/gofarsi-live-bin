@@ -100,8 +100,8 @@ jobs:
       - name: Commit and Push to GitHub
         if: steps.updater.outputs.updated == 'true'
         run: |
-          # 1. Tell Git to completely ignore the builder vs root ownership boundary
-          git config --global --add safe.directory '*'
+          # 1. Take ownership of the workspace back from the 'builder' user
+          chown -R root:root .
 
           # 2. Setup the bot identity
           git config --global user.name "github-actions[bot]"
