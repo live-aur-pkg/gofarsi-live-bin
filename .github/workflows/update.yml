@@ -35,14 +35,19 @@ jobs:
           chmod a+w "$GITHUB_OUTPUT"
           su builder -c '
             echo "Fetching latest release from GitHub API..."
-            # Safely grab the latest tag using jq and strip the "v" prefix
+
+            # 1. Grab the latest tag
             LATEST_VER=$(curl -sL https://api.github.com/repos/GoFarsi/book/releases/latest | jq -r ".tag_name" | sed "s/^v//")
+
+            # 2. Create the Arch-compliant version (replace - with _)
+            ARCH_PKGVER=$(echo "$LATEST_VER" | tr "-" "_")
+
             CURRENT_VER=$(grep "^pkgver=" PKGBUILD | cut -d= -f2)
 
             echo "Current version: $CURRENT_VER"
-            echo "Latest version: $LATEST_VER"
+            echo "Latest version: $ARCH_PKGVER"
 
-            if [ "$LATEST_VER" = "$CURRENT_VER" ] || [ "$LATEST_VER" = "null" ]; then
+            if [ "$ARCH_PKGVER" = "$CURRENT_VER" ] || [ "$LATEST_VER" = "null" ]; then
               echo "No new version found. Exiting."
               echo "updated=false" >> $GITHUB_OUTPUT
               exit 0
@@ -50,8 +55,8 @@ jobs:
 
             echo "New version detected! Updating PKGBUILD..."
 
-            # Update the version and reset the release number to 1
-            sed -i "s/^_pkgver=.*/_pkgver=$LATEST_TAG/" PKGBUILD
+            # 3. Inject the correct variables into the PKGBUILD
+            sed -i "s/^_pkgver=.*/_pkgver=$LATEST_VER/" PKGBUILD
             sed -i "s/^pkgver=.*/pkgver=$ARCH_PKGVER/" PKGBUILD
             sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
 
