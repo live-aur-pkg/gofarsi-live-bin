@@ -74,21 +74,15 @@ jobs:
         run: |
           echo "Setting up SSH for AUR..."
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
 
-          # 1. Save the private key
+          # Save the private key securely
           echo "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-          # 2. Create an explicit SSH config to bypass the strict host checking
-          cat << 'EOF' > ~/.ssh/config
-          Host aur.archlinux.org
-            StrictHostKeyChecking no
-            User aur
-            IdentityFile ~/.ssh/id_ed25519
-          EOF
-          chmod 600 ~/.ssh/config
+          # Force Git to use SSH with strict host checking completely disabled
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_ed25519"
 
-          # 3. Clone the CORRECT repository (gofarsi-live-bin)
           echo "Cloning the AUR repository..."
           git clone ssh://aur@aur.archlinux.org/gofarsi-live-bin.git /tmp/aur_repo
 
