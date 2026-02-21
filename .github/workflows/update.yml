@@ -11,16 +11,17 @@ jobs:
     container: archlinux:latest
 
     steps:
-      - name: Checkout GitHub Repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
       - name: Install Arch Dependencies
         run: |
           # Initialize pacman keys and install required tools
           pacman-key --init
           pacman -Syu --noconfirm base-devel pacman-contrib git curl jq openssh
+
+      - name: Checkout GitHub Repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: master
 
       - name: Create non-root builder user
         run: |
