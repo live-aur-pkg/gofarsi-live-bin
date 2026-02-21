@@ -32,7 +32,7 @@ jobs:
       - name: Check Version and Update Files
         id: updater
         run: |
-          # Switch to our non-root user to run the update logic
+          chmod a+w "$GITHUB_OUTPUT"
           su builder -c '
             echo "Fetching latest release from GitHub API..."
             # Safely grab the latest tag using jq and strip the "v" prefix
