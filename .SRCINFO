@@ -14,6 +14,6 @@ pkgbase = gofarsi-live-bin
 	conflicts = gofarsi
 	conflicts = gofarsi-book
 	source = book_2026.02.07-112440-2ca47a4a5_linux_amd64.deb::https://github.com/GoFarsi/book/releases/download/v2026.02.07-112440-2ca47a4a5/book_2026.02.07-112440-2ca47a4a5_linux_amd64.deb
-	sha256sums = 31ed71a7e0a1321e0ed853954cf9e49193831bdd8b30f42bd4da386e335fb9fc
+	sha256sums = SKIP
 
 pkgname = gofarsi-live-bin

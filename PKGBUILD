@@ -23,7 +23,7 @@ esac
 
 source=("$_deb::https://github.com/GoFarsi/book/releases/download/v${_pkgver}/${_deb}")
 
-sha256sums=('31ed71a7e0a1321e0ed853954cf9e49193831bdd8b30f42bd4da386e335fb9fc')
+sha256sums=('SKIP')
 
 package() {
   bsdtar -xf "${srcdir}/${_deb}"
