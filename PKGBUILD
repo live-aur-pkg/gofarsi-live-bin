@@ -2,8 +2,8 @@
 # This file is based released package by Amir Husayn Panahifar <ahp@panahifar.ir>
 
 pkgname=gofarsi-live-bin
-_pkgver=2025.10.26-142824-eb1cad849
-pkgver=2025.10.26_142824_eb1cad849
+_pkgver=2026.02.07-112440-2ca47a4a5
+pkgver=2026.02.07_112440_2ca47a4a5
 pkgrel=1
 pkgdesc="Free Persian Go programming language book (Live version)"
 arch=('x86_64' 'aarch64' 'i686' 'pentium4' 'armv6h')
@@ -23,7 +23,7 @@ esac
 
 source=("$_deb::https://github.com/GoFarsi/book/releases/download/v${_pkgver}/${_deb}")
 
-sha256sums=('31ed71a7e0a1321e0ed853954cf9e49193831bdd8b30f42bd4da386e335fb9fc')
+sha256sums=('SKIP')
 
 package() {
   bsdtar -xf "${srcdir}/${_deb}"
