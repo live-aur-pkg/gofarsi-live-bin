@@ -33,7 +33,6 @@ jobs:
       - name: Check Version and Update Files
         id: updater
         run: |
-          git checkout master
           chmod a+w "$GITHUB_OUTPUT"
           su builder -c '
             echo "Fetching latest release from GitHub API..."
