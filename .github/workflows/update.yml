@@ -96,25 +96,3 @@ jobs:
           git add PKGBUILD .SRCINFO
           git commit -m "Update to v${{ steps.updater.outputs.new_version }}"
           git push origin master
-
-      - name: Commit and Push to GitHub
-        if: steps.updater.outputs.updated == 'true'
-        run: |
-          # 1. Force Git to search across Docker volume boundaries
-          export GIT_DISCOVERY_ACROSS_FILESYSTEM=1
-
-          # 2. Ensure we are strictly inside the GitHub workspace
-          cd "$GITHUB_WORKSPACE"
-
-          # 3. Reclaim ownership and explicitly tell Git this exact folder is safe
-          chown -R root:root .
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-          # 4. Setup the bot identity
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-          # 5. Commit and push back to your repo
-          git add PKGBUILD .SRCINFO
-          git commit -m "chore: auto-update to v${{ steps.updater.outputs.new_version }}"
-          git push origin main
