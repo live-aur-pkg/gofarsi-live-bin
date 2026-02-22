@@ -11,12 +11,40 @@ jobs:
     container: archlinux:latest
 
     steps:
+      - name: Quick Version Check
+        id: check
+        run: |
+          pacman -Sy --noconfirm curl jq
+
+          echo "Fetching latest release from GitHub API..."
+          LATEST_VER=$(curl -sL https://api.github.com/repos/GoFarsi/book/releases/latest | jq -r ".tag_name" | sed "s/^v//")
+          ARCH_PKGVER=$(echo "$LATEST_VER" | tr "-" "_")
+
+          echo "Fetching current version from AUR..."
+          CURRENT_VER=$(curl -sL "https://aur.archlinux.org/cgit/aur.git/plain/PKGBUILD?h=gofarsi-live-bin" | grep "^pkgver=" | cut -d= -f2)
+
+          echo "Current AUR version: $CURRENT_VER"
+          echo "Latest GitHub version: $ARCH_PKGVER"
+
+          if [ "$ARCH_PKGVER" = "$CURRENT_VER" ] || [ "$LATEST_VER" = "null" ]; then
+            echo "No new version found. Stopping workflow to save action minutes."
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Update found! Proceeding with heavy installation..."
+          echo "needs_update=true" >> $GITHUB_OUTPUT
+          echo "latest_ver=$LATEST_VER" >> $GITHUB_OUTPUT
+          echo "arch_pkgver=$ARCH_PKGVER" >> $GITHUB_OUTPUT
+
       - name: Install Arch Dependencies
+        if: steps.check.outputs.needs_update == 'true'
         run: |
           pacman-key --init
-          pacman -Syu --noconfirm base-devel git curl jq openssh
+          pacman -Syu --noconfirm base-devel openssh git
 
       - name: Setup SSH & Clone AUR Repository
+        if: steps.check.outputs.needs_update == 'true'
         env:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         run: |
@@ -27,54 +55,31 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
 
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_ed25519"
-
-          echo "Cloning the AUR repository..."
           git clone ssh://aur@aur.archlinux.org/gofarsi-live-bin.git /tmp/aur_repo
 
-      - name: Create non-root builder user
+      - name: Update Files and Generate .SRCINFO
+        if: steps.check.outputs.needs_update == 'true'
         run: |
           useradd -m builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-
           chown -R builder:builder /tmp/aur_repo
 
-      - name: Check Version and Update Files
-        id: updater
-        run: |
           chmod a+w "$GITHUB_OUTPUT"
 
           su builder -c '
             cd /tmp/aur_repo
-            echo "Fetching latest release from GitHub API..."
 
-            LATEST_VER=$(curl -sL https://api.github.com/repos/GoFarsi/book/releases/latest | jq -r ".tag_name" | sed "s/^v//")
-            ARCH_PKGVER=$(echo "$LATEST_VER" | tr "-" "_")
-            CURRENT_VER=$(grep "^pkgver=" PKGBUILD | cut -d= -f2)
-
-            echo "Current version: $CURRENT_VER"
-            echo "Latest version: $ARCH_PKGVER"
-
-            if [ "$ARCH_PKGVER" = "$CURRENT_VER" ] || [ "$LATEST_VER" = "null" ]; then
-              echo "No new version found. Exiting."
-              echo "updated=false" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-
-            echo "New version detected! Updating PKGBUILD..."
-
-            sed -i "s/^_pkgver=.*/_pkgver=$LATEST_VER/" PKGBUILD
-            sed -i "s/^pkgver=.*/pkgver=$ARCH_PKGVER/" PKGBUILD
+            # Inject the dual variables calculated in step 1
+            sed -i "s/^_pkgver=.*/_pkgver=${{ steps.check.outputs.latest_ver }}/" PKGBUILD
+            sed -i "s/^pkgver=.*/pkgver=${{ steps.check.outputs.arch_pkgver }}/" PKGBUILD
             sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
 
             echo "Generating new .SRCINFO..."
             makepkg --printsrcinfo > .SRCINFO
-
-            echo "updated=true" >> $GITHUB_OUTPUT
-            echo "new_version=$LATEST_VER" >> $GITHUB_OUTPUT
           '
 
       - name: Commit and Push directly to AUR
-        if: steps.updater.outputs.updated == 'true'
+        if: steps.check.outputs.needs_update == 'true'
         run: |
           cd /tmp/aur_repo
 
@@ -86,5 +91,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git add PKGBUILD .SRCINFO
-          git commit -m "Update to v${{ steps.updater.outputs.new_version }}"
+          git commit -m "Update to v${{ steps.check.outputs.latest_ver }}"
           git push origin master
