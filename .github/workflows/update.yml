@@ -77,6 +77,9 @@ jobs:
         if: steps.updater.outputs.updated == 'true'
         run: |
           cd /tmp/aur_repo
+
+          chown -R root:root .
+          git config --global --add safe.directory /tmp/aur_repo
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_ed25519"
 
           git config user.name "github-actions[bot]"
