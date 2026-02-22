@@ -13,36 +13,42 @@ jobs:
     steps:
       - name: Install Arch Dependencies
         run: |
-          # Initialize pacman keys and install required tools
           pacman-key --init
-          pacman -Syu --noconfirm base-devel pacman-contrib git curl jq openssh
+          pacman -Syu --noconfirm base-devel git curl jq openssh
 
-      - name: Checkout GitHub Repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          ref: master
+      - name: Setup SSH & Clone AUR Repository
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          echo "Setting up SSH for AUR..."
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_ed25519"
+
+          echo "Cloning the AUR repository..."
+          git clone ssh://aur@aur.archlinux.org/gofarsi-live-bin.git /tmp/aur_repo
 
       - name: Create non-root builder user
         run: |
-          # makepkg refuses to run as root. We create a 'builder' user and give them ownership of the repo folder.
           useradd -m builder
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
-          chown -R builder:builder .
+
+          chown -R builder:builder /tmp/aur_repo
 
       - name: Check Version and Update Files
         id: updater
         run: |
           chmod a+w "$GITHUB_OUTPUT"
+
           su builder -c '
+            cd /tmp/aur_repo
             echo "Fetching latest release from GitHub API..."
 
-            # 1. Grab the latest tag
             LATEST_VER=$(curl -sL https://api.github.com/repos/GoFarsi/book/releases/latest | jq -r ".tag_name" | sed "s/^v//")
-
-            # 2. Create the Arch-compliant version (replace - with _)
             ARCH_PKGVER=$(echo "$LATEST_VER" | tr "-" "_")
-
             CURRENT_VER=$(grep "^pkgver=" PKGBUILD | cut -d= -f2)
 
             echo "Current version: $CURRENT_VER"
@@ -56,7 +62,6 @@ jobs:
 
             echo "New version detected! Updating PKGBUILD..."
 
-            # 3. Inject the correct variables into the PKGBUILD
             sed -i "s/^_pkgver=.*/_pkgver=$LATEST_VER/" PKGBUILD
             sed -i "s/^pkgver=.*/pkgver=$ARCH_PKGVER/" PKGBUILD
             sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
@@ -68,56 +73,15 @@ jobs:
             echo "new_version=$LATEST_VER" >> $GITHUB_OUTPUT
           '
 
-      - name: Deploy to AUR
+      - name: Commit and Push directly to AUR
         if: steps.updater.outputs.updated == 'true'
-        env:
-          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         run: |
-          echo "Setting up SSH for AUR..."
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-
-          # Save the private key securely
-          echo "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-
-          # Force Git to use SSH with strict host checking completely disabled
+          cd /tmp/aur_repo
           export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/id_ed25519"
 
-          echo "Cloning the AUR repository..."
-          git clone ssh://aur@aur.archlinux.org/gofarsi-live-bin.git /tmp/aur_repo
-
-          echo "Copying updated files to AUR repo..."
-          cp PKGBUILD .SRCINFO /tmp/aur_repo/
-
-          cd /tmp/aur_repo
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git add PKGBUILD .SRCINFO
           git commit -m "Update to v${{ steps.updater.outputs.new_version }}"
-          git push origin master
-
-      - name: Commit and Push to GitHub
-        if: steps.updater.outputs.updated == 'true'
-        run: |
-          echo "Syncing changes back to GitHub..."
-
-          # 1. Force Git to search across Docker volume boundaries
-          export GIT_DISCOVERY_ACROSS_FILESYSTEM=1
-          cd "$GITHUB_WORKSPACE"
-
-          # 2. Reclaim ownership from the builder user back to root
-          chown -R root:root .
-
-          # 3. Explicitly tell Git this exact folder is safe
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-          # 4. Setup the GitHub Actions bot identity
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-          # 5. Stage, commit, and push back to the master branch
-          git add PKGBUILD .SRCINFO
-          git commit -m "chore: auto-update to v${{ steps.updater.outputs.new_version }}"
           git push origin master
